@@ -5,6 +5,9 @@ RequestRatePerSec: 200
 # Defaults to: RequestRatePerSec * RequestTimeout + 20%, which guarantees there is always a client available to send a request
 Clients: 1000
 
+# How long to warm up connections before running the test
+WarmUpDuration: 0s
+
 # How long to run the test
 Duration: 10s
 

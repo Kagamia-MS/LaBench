@@ -19,6 +19,7 @@ import (
 type benchParams struct {
 	RequestRatePerSec uint64        `yaml:"RequestRatePerSec"`
 	Clients           uint64        `yaml:"Clients"`
+	WarmUpDuration    time.Duration `yaml:"WarmUpDuration"`
 	Duration          time.Duration `yaml:"Duration"`
 	BaseLatency       time.Duration `yaml:"BaseLatency"`
 	RequestTimeout    time.Duration `yaml:"RequestTimeout"`
@@ -99,6 +100,12 @@ func main() {
 		clients += clients / 5 // add 20%
 		conf.Params.Clients = clients
 		fmt.Println("Clients:", clients)
+	}
+
+	if conf.Params.WarmUpDuration > 0 {
+		warmUpStep := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.WarmUpDuration, conf.Params.BaseLatency)
+		_, err := warmUpStep.Run(conf.Params.OutputJSON, conf.Params.TightTicker)
+		maybePanic(err)
 	}
 
 	benchmark := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.Duration, conf.Params.BaseLatency)
