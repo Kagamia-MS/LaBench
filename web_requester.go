@@ -54,6 +54,9 @@ func initHTTPClient(reuseConnections bool, requestTimeout time.Duration, dontLin
 			ResponseHeaderTimeout: requestTimeout,
 			TLSHandshakeTimeout:   requestTimeout,
 			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig: &tls.Config{
+				NextProtos: []string{"http/1.1"},
+			},
 		},
 		Timeout: requestTimeout}
 
@@ -77,6 +80,9 @@ func initHTTP2Client(requestTimeout time.Duration, dontLinger bool) {
 					maybePanic(con.(*net.TCPConn).SetLinger(0))
 				}
 				return con, err
+			},
+			TLSClientConfig: &tls.Config{
+				NextProtos: []string{"h2"},
 			},
 		},
 		Timeout: requestTimeout}

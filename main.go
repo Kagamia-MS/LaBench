@@ -102,13 +102,7 @@ func main() {
 		fmt.Println("Clients:", clients)
 	}
 
-	if conf.Params.WarmUpDuration > 0 {
-		warmUpStep := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.WarmUpDuration, conf.Params.BaseLatency)
-		_, err := warmUpStep.Run(conf.Params.OutputJSON, conf.Params.TightTicker)
-		maybePanic(err)
-	}
-
-	benchmark := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.Duration, conf.Params.BaseLatency)
+	benchmark := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.Duration, conf.Params.WarmUpDuration, conf.Params.BaseLatency)
 	summary, err := benchmark.Run(conf.Params.OutputJSON, conf.Params.TightTicker)
 	maybePanic(err)
 

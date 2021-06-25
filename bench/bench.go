@@ -47,6 +47,7 @@ type Benchmark struct {
 	connections      uint64
 	requestRate      float64
 	duration         time.Duration
+	warmUpDuration   time.Duration
 	baseLatency      time.Duration
 	expectedInterval time.Duration
 	successHistogram *hdrhistogram.Histogram
@@ -69,7 +70,7 @@ type Benchmark struct {
 // each connection will attempt to issue 5,000 requests per second. A zero
 // value disables rate limiting entirely. The duration argument specifies how
 // long to run the benchmark.
-func NewBenchmark(factory RequesterFactory, requestRate, connections uint64, duration time.Duration, baseLatency time.Duration) *Benchmark {
+func NewBenchmark(factory RequesterFactory, requestRate, connections uint64, duration, warmUpDuration, baseLatency time.Duration) *Benchmark {
 
 	if connections == 0 {
 		connections = 1
@@ -83,6 +84,7 @@ func NewBenchmark(factory RequesterFactory, requestRate, connections uint64, dur
 		connections:      connections,
 		requestRate:      float64(requestRate),
 		duration:         duration,
+		warmUpDuration:   warmUpDuration,
 		baseLatency:      baseLatency,
 		expectedInterval: time.Duration(float64(time.Second) / float64(requestRate)),
 		successHistogram: hdrhistogram.New(minRecordableLatencyNS, maxRecordableLatencyNS, sigFigs),
@@ -311,16 +313,22 @@ func (b *Benchmark) worker(requester Requester, ticker <-chan time.Time, results
 		successTotal uint64
 	)
 
+	startTime := time.Now()
+
 	for tick := range ticker {
 		before := time.Now()
+		err := requester.Request()
+		latency := time.Since(before).Nanoseconds()
+
+		if before.Sub(startTime) < b.warmUpDuration {
+			continue
+		}
+
 		if before.Sub(tick) >= b.expectedInterval {
 			lateSends++
 		} else {
 			timelySends++
 		}
-
-		err := requester.Request()
-		latency := time.Since(before).Nanoseconds()
 		if err != nil {
 			errorTotal++
 			errors <- err
