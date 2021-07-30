@@ -27,6 +27,7 @@ type benchParams struct {
 	DontLinger        bool          `yaml:"DontLinger"`
 	OutputJSON        bool          `yaml:"OutputJSON"`
 	TightTicker       bool          `yaml:"TightTicker"`
+	Insecure          bool          `yaml:"Insecure"`
 }
 
 type config struct {
@@ -85,10 +86,10 @@ func main() {
 
 	switch conf.Protocol {
 	case "HTTP/2":
-		initHTTP2Client(conf.Params.RequestTimeout, conf.Params.DontLinger)
+		initHTTP2Client(conf.Params.RequestTimeout, conf.Params.DontLinger, conf.Params.Insecure)
 
 	default:
-		initHTTPClient(conf.Params.ReuseConnections, conf.Params.RequestTimeout, conf.Params.DontLinger)
+		initHTTPClient(conf.Params.ReuseConnections, conf.Params.RequestTimeout, conf.Params.DontLinger, conf.Params.Insecure)
 	}
 
 	if conf.Params.RequestTimeout == 0 {

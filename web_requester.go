@@ -35,7 +35,7 @@ func noLingerDialer(ctx context.Context, network, addr string) (net.Conn, error)
 	return con, err
 }
 
-func initHTTPClient(reuseConnections bool, requestTimeout time.Duration, dontLinger bool) {
+func initHTTPClient(reuseConnections bool, requestTimeout time.Duration, dontLinger bool, insecure bool) {
 	defaultDialer = &net.Dialer{
 		Timeout: requestTimeout,
 		// Disable TCP keepalives as we are sending data very actively anyway.
@@ -55,7 +55,8 @@ func initHTTPClient(reuseConnections bool, requestTimeout time.Duration, dontLin
 			TLSHandshakeTimeout:   requestTimeout,
 			ExpectContinueTimeout: 1 * time.Second,
 			TLSClientConfig: &tls.Config{
-				NextProtos: []string{"http/1.1"},
+				NextProtos:         []string{"http/1.1"},
+				InsecureSkipVerify: insecure,
 			},
 		},
 		Timeout: requestTimeout}
@@ -63,7 +64,7 @@ func initHTTPClient(reuseConnections bool, requestTimeout time.Duration, dontLin
 	noLinger = dontLinger
 }
 
-func initHTTP2Client(requestTimeout time.Duration, dontLinger bool) {
+func initHTTP2Client(requestTimeout time.Duration, dontLinger bool, insecure bool) {
 	defaultDialer = &net.Dialer{
 		Timeout: requestTimeout,
 		// Disable TCP keepalives as we are sending data very actively anyway.
@@ -75,14 +76,20 @@ func initHTTP2Client(requestTimeout time.Duration, dontLinger bool) {
 		Transport: &http2.Transport{
 			AllowHTTP: true,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				con, err := defaultDialer.Dial(network, addr)
-				if err == nil && con != nil && noLinger {
-					maybePanic(con.(*net.TCPConn).SetLinger(0))
-				}
+				con, err := tls.DialWithDialer(defaultDialer, network, addr, cfg)
 				return con, err
 			},
 			TLSClientConfig: &tls.Config{
 				NextProtos: []string{"h2"},
+				GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+					if dontLinger {
+						if tcpConn, ok := chi.Conn.(*net.TCPConn); ok {
+							maybePanic(tcpConn.SetLinger(0))
+						}
+					}
+					return nil, nil
+				},
+				InsecureSkipVerify: insecure,
 			},
 		},
 		Timeout: requestTimeout}

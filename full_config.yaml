@@ -29,6 +29,9 @@ DontLinger: true
 # Produce JSON with results of the run, defaults to false
 OutputJSON: true
 
+# Skip server certificate verification for tls, defaults to false
+Insecure: false
+
 # If time resolution logic to pick sleeping or tight ticker does not work, then TightTicker can be forced by setting this to true.
 # TightTicker is very precise but it takes an entire CPU Core.
 # SleepingTicker uses OS thread sleep API, but if OS sleeping precision is not sufficient then there will be a lot of missing TimelyTicks.
