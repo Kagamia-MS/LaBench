@@ -8,7 +8,9 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
+	"syscall"
 	"time"
 
 	"labench/bench"
@@ -50,6 +52,9 @@ func assert(cond bool, err string) {
 }
 
 func main() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	configFile := "labench.yaml"
 	if len(os.Args) > 1 {
 		assert(len(os.Args) == 2, fmt.Sprintf("Usage: %s [config.yaml]\n\tThe default config file name is: %s", os.Args[0], configFile))
@@ -103,9 +108,23 @@ func main() {
 		fmt.Println("Clients:", clients)
 	}
 
+	done := make(chan struct{}, 1)
+	go func() {
+	loop:
+		for {
+			select {
+			case c := <-sigChan:
+				fmt.Println("Receive signal", c.String())
+				done <- struct{}{}
+			case <-done:
+				break loop
+			}
+		}
+	}()
 	benchmark := bench.NewBenchmark(&conf.Request, conf.Params.RequestRatePerSec, conf.Params.Clients, conf.Params.Duration, conf.Params.WarmUpDuration, conf.Params.BaseLatency)
-	summary, err := benchmark.Run(conf.Params.OutputJSON, conf.Params.TightTicker)
+	summary, err := benchmark.Run(done, conf.Params.OutputJSON, conf.Params.TightTicker)
 	maybePanic(err)
+	close(done)
 
 	fmt.Println("timeEnd   =", time.Now().UTC().Add(5*time.Second).Round(time.Second))
 

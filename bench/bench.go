@@ -94,12 +94,11 @@ func NewBenchmark(factory RequesterFactory, requestRate, connections uint64, dur
 
 // Run the benchmark and return a summary of the results. An error is returned
 // if something went wrong along the way.
-func (b *Benchmark) Run(outputJson bool, forceTightTicker bool) (*Summary, error) {
+func (b *Benchmark) Run(done <-chan struct{}, outputJson bool, forceTightTicker bool) (*Summary, error) {
 	var (
 		ticker        = make(chan time.Time)
 		results       = make(chan int64, 100)
 		errors        = make(chan error, 100)
-		done          = make(chan struct{})
 		stopCollector = make(chan struct{})
 		wg            sync.WaitGroup
 	)
@@ -192,7 +191,7 @@ func detectOsTimerResolution() time.Duration {
 	return bestTimerRes
 }
 
-func (b *Benchmark) tickerFunc(doneCh chan<- struct{}, outCh chan<- time.Time, forceTightTicker bool) {
+func (b *Benchmark) tickerFunc(doneCh <-chan struct{}, outCh chan<- time.Time, forceTightTicker bool) {
 	timerRes := detectOsTimerResolution()
 	fmt.Printf("ExpectedInterval = %v, Detected OS timer resolution = %v\n", b.expectedInterval, timerRes)
 	if timerRes*3 > b.expectedInterval {
@@ -211,7 +210,7 @@ func (b *Benchmark) tickerFunc(doneCh chan<- struct{}, outCh chan<- time.Time, f
 	}
 }
 
-func (b *Benchmark) tightTicker(doneCh chan<- struct{}, outCh chan<- time.Time) {
+func (b *Benchmark) tightTicker(doneCh <-chan struct{}, outCh chan<- time.Time) {
 	start := time.Now()
 	lastTick := start
 
@@ -223,14 +222,23 @@ func (b *Benchmark) tightTicker(doneCh chan<- struct{}, outCh chan<- time.Time) 
 	expectedInterval := b.expectedInterval
 	duration := b.duration
 
+_loop:
 	for {
 		var thisTick time.Time
 
+	_wait:
 		for {
-			thisTick = time.Now()
-			if thisTick.Sub(lastTick) >= expectedInterval {
-				lastTick = lastTick.Add(expectedInterval)
-				break
+			select {
+			case <-doneCh:
+				close(outCh)
+				break _loop
+
+			default:
+				thisTick = time.Now()
+				if thisTick.Sub(lastTick) >= expectedInterval {
+					lastTick = lastTick.Add(expectedInterval)
+					break _wait
+				}
 			}
 		}
 
@@ -248,14 +256,13 @@ func (b *Benchmark) tightTicker(doneCh chan<- struct{}, outCh chan<- time.Time) 
 		}
 	}
 
-	close(doneCh)
 	b.elapsed = time.Since(start)
 
 	b.timelyTicks = timelyTicks
 	b.missedTicks = missedTicks
 }
 
-func (b *Benchmark) sleepingTicker(doneCh chan<- struct{}, outCh chan<- time.Time) {
+func (b *Benchmark) sleepingTicker(doneCh <-chan struct{}, outCh chan<- time.Time) {
 	completion := time.After(b.duration)
 
 	inCh := time.Tick(b.expectedInterval)
@@ -286,10 +293,13 @@ loop:
 			// log.Println("Signaling DONE")
 			close(outCh)
 			break loop
+
+		case <-doneCh:
+			close(outCh)
+			break loop
 		}
 	}
 
-	close(doneCh)
 	b.elapsed = time.Since(start)
 
 	b.timelyTicks = timelyTicks
